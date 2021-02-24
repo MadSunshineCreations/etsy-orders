@@ -12,77 +12,70 @@ import (
 type Orders struct {
 	Count   int `json:"count"`
 	Results []struct {
-		ReceiptID                int           `json:"receipt_id"`
-		ReceiptType              int           `json:"receipt_type"`
-		OrderID                  int           `json:"order_id"`
-		SellerUserID             int           `json:"seller_user_id"`
-		BuyerUserID              int           `json:"buyer_user_id"`
-		CreationTsz              int           `json:"creation_tsz"`
-		CanRefund                bool          `json:"can_refund"`
-		LastModifiedTsz          int           `json:"last_modified_tsz"`
-		Name                     string        `json:"name"`
-		FirstLine                string        `json:"first_line"`
-		SecondLine               string        `json:"second_line"`
-		City                     string        `json:"city"`
-		State                    string        `json:"state"`
-		Zip                      string        `json:"zip"`
-		FormattedAddress         string        `json:"formatted_address"`
-		CountryID                int           `json:"country_id"`
-		PaymentMethod            string        `json:"payment_method"`
-		PaymentEmail             string        `json:"payment_email"`
-		MessageFromSeller        interface{}   `json:"message_from_seller"`
-		MessageFromBuyer         interface{}   `json:"message_from_buyer"`
-		WasPaid                  bool          `json:"was_paid"`
-		TotalTaxCost             string        `json:"total_tax_cost"`
-		TotalVatCost             string        `json:"total_vat_cost"`
-		TotalPrice               string        `json:"total_price"`
-		TotalShippingCost        string        `json:"total_shipping_cost"`
-		CurrencyCode             string        `json:"currency_code"`
-		MessageFromPayment       interface{}   `json:"message_from_payment"`
-		WasShipped               bool          `json:"was_shipped"`
-		BuyerEmail               string        `json:"buyer_email"`
-		SellerEmail              string        `json:"seller_email"`
-		IsGift                   bool          `json:"is_gift"`
-		NeedsGiftWrap            bool          `json:"needs_gift_wrap"`
-		GiftMessage              string        `json:"gift_message"`
-		DiscountAmt              string        `json:"discount_amt"`
-		Subtotal                 string        `json:"subtotal"`
-		Grandtotal               string        `json:"grandtotal"`
-		AdjustedGrandtotal       string        `json:"adjusted_grandtotal"`
-		BuyerAdjustedGrandtotal  string        `json:"buyer_adjusted_grandtotal"`
-		Shipments                []interface{} `json:"shipments"`
-		ShippedDate              int           `json:"shipped_date"`
-		IsOverdue                bool          `json:"is_overdue"`
-		DaysFromDueDate          int           `json:"days_from_due_date"`
-		TransparentPriceMessage  string        `json:"transparent_price_message"`
-		ShowChannelBadge         bool          `json:"show_channel_badge"`
-		ChannelBadgeSuffixString string        `json:"channel_badge_suffix_string"`
-		IsDead                   bool          `json:"is_dead"`
+		ReceiptID         int    `json:"receipt_id"`
+		ReceiptType       int    `json:"receipt_type"`
+		OrderID           int    `json:"order_id"`
+		CanRefund         bool   `json:"can_refund"`
+		MessageFromSeller string `json:"message_from_seller"`
+		MessageFromBuyer  string `json:"message_from_buyer"`
+		WasPaid           bool   `json:"was_paid"`
+		GiftMessage       string `json:"gift_message"`
+		IsOverdue         bool   `json:"is_overdue"`
+		DaysFromDueDate   int    `json:"days_from_due_date"`
+		IsDead            bool   `json:"is_dead"`
 	} `json:"results"`
 	Pagination struct {
-		EffectiveLimit  int         `json:"effective_limit"`
-		EffectiveOffset int         `json:"effective_offset"`
-		NextOffset      interface{} `json:"next_offset"`
-		EffectivePage   int         `json:"effective_page"`
-		NextPage        interface{} `json:"next_page"`
+		EffectiveLimit  int `json:"effective_limit"`
+		EffectiveOffset int `json:"effective_offset"`
+		NextOffset      int `json:"next_offset"`
+		EffectivePage   int `json:"effective_page"`
+		NextPage        int `json:"next_page"`
 	} `json:"pagination"`
 }
 
-// GroupedOrders is the list
-type GroupedOrders struct {
-	Count  int `json:"count"`
-	ByItem struct {
-		name   string
-		colors []string
-	} `json:"orders"`
-	ByColor struct {
-		name  string
-		count int
-	}
+//Receipts - list of receipts for an order. Basically the order details
+type Receipts struct {
+	Count   int `json:"count"`
+	Results []struct {
+		TransactionID int64  `json:"transaction_id"`
+		Title         string `json:"title"`
+		URL           string `json:"url"`
+		Variations    []struct {
+			PropertyID     int    `json:"property_id"`
+			ValueID        int64  `json:"value_id"`
+			FormattedName  string `json:"formatted_name"`
+			FormattedValue string `json:"formatted_value"`
+		} `json:"variations"`
+	} `json:"results"`
+	Params struct {
+		ReceiptID string `json:"receipt_id"`
+		Limit     int    `json:"limit"`
+		Offset    int    `json:"offset"`
+		Page      int    `json:"page"`
+	} `json:"params"`
+	Type       string `json:"type"`
+	Pagination struct {
+		EffectiveLimit  int `json:"effective_limit"`
+		EffectiveOffset int `json:"effective_offset"`
+		NextOffset      int `json:"next_offset"`
+		EffectivePage   int `json:"effective_page"`
+		NextPage        int `json:"next_page"`
+	} `json:"pagination"`
+}
+
+//An Order is consolidation of an Order and Receipt from Etsy
+type Order struct {
+	Name              string
+	PrimaryColor      string
+	SecondaryColor    string
+	SlotAmount        string
+	MessageFromSeller string
+	GiftMessage       string
+	URL               string
 }
 
 // GetOrders expects a http client setup with auth ready to go.
-func GetOrders(client *http.Client) {
+func GetOrders(client *http.Client) []Order {
 	response, err := client.Get(
 		"https://openapi.etsy.com/v2/shops/15212421/receipts?was_paid=true&was_shipped=false")
 	if err != nil {
@@ -90,31 +83,56 @@ func GetOrders(client *http.Client) {
 	}
 
 	bytes, err := ioutil.ReadAll(response.Body)
-	// fmt.Println(string(bits))
-
 	orders := Orders{}
 	if err := json.Unmarshal(bytes, &orders); err != nil {
 		panic(err)
 	}
-	fmt.Println(orders)
+	var openOrders []Order
 
 	for i := 0; i < len(orders.Results); i++ {
-		getTransactions(client, orders.Results[i].ReceiptID)
+		receipts := getTransactions(client, orders.Results[i].ReceiptID)
+
+		for j := 0; j < receipts.Count; j++ {
+			primaryColor := ""
+			secondaryColor := ""
+			slotAmount := ""
+			for k := 0; k < len(receipts.Results[j].Variations); k++ {
+				switch variation := receipts.Results[j].Variations[k].FormattedName; variation {
+				case "Color":
+					primaryColor = receipts.Results[j].Variations[k].FormattedValue
+				case "Secondary color":
+					secondaryColor = receipts.Results[j].Variations[k].FormattedValue
+				case "Slot Amount":
+					slotAmount = receipts.Results[j].Variations[k].FormattedValue
+				}
+			}
+
+			//Make a new order for each
+			order := Order{
+				receipts.Results[j].Title,
+				primaryColor,
+				secondaryColor,
+				slotAmount,
+				orders.Results[i].MessageFromBuyer,
+				orders.Results[i].GiftMessage,
+				receipts.Results[j].URL,
+			}
+			openOrders = append(openOrders, order)
+		}
 	}
+	return openOrders
 }
 
-func getTransactions(client *http.Client, recieptID int) {
+func getTransactions(client *http.Client, recieptID int) Receipts {
 	response, err := client.Get(
 		"https://openapi.etsy.com/v2/receipts/" + fmt.Sprint(recieptID) + "/transactions")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Need to get all the transactions (Items). Ulimately need to gruop this by property ID and Value
-	// Property is like "Color, Secondary Color", value is the actual color. Blue, Red etc..
-
 	bytes, err := ioutil.ReadAll(response.Body)
-
-	fmt.Println(string(bytes))
-
+	receipts := Receipts{}
+	if err := json.Unmarshal(bytes, &receipts); err != nil {
+		panic(err)
+	}
+	return receipts
 }

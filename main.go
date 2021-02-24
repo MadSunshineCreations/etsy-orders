@@ -1,13 +1,33 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/mrjones/oauth"
 )
+
+var ordersMutex = &sync.Mutex{}
+var orders = []Order{}
+
+type ordersReply struct {
+	Orders []Order `json:"orders"`
+}
+
+type etsyConfig struct {
+	ConsumerKey    string
+	ConsumerSecret string
+	AccessToken    string
+	AccessSecret   string
+}
+
+var config etsyConfig
 
 //Usage How to user
 func Usage() {
@@ -19,7 +39,33 @@ func Usage() {
 	fmt.Println("In order to get your consumerkey and consumersecret, you must register an 'app' etsy.com:")
 }
 
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Alive!")
+}
+
+func orderHandler(w http.ResponseWriter, r *http.Request) {
+	ordersMutex.Lock()
+	json.NewEncoder(w).Encode(orders)
+	ordersMutex.Unlock()
+}
+
 func main() {
+	loadConfig()
+	go func() {
+		for {
+			loadOrders()
+			time.Sleep(time.Minute * 15)
+		}
+	}()
+
+	http.HandleFunc("/", rootHandler)
+	http.HandleFunc("/orders", orderHandler)
+
+	fmt.Printf("Listening on port 8081")
+	log.Fatal(http.ListenAndServe(":8081", nil))
+}
+
+func loadConfig() {
 	var consumerKey *string = flag.String(
 		"consumerkey",
 		"",
@@ -30,6 +76,16 @@ func main() {
 		"",
 		"Consumer Secret Etsy")
 
+	var accessToken *string = flag.String(
+		"accesstoken",
+		"",
+		"Access Token for Etsy App")
+
+	var accessSecret *string = flag.String(
+		"accesssecret",
+		"",
+		"Access Secret Etsy App")
+
 	flag.Parse()
 
 	if len(*consumerKey) == 0 || len(*consumerSecret) == 0 {
@@ -39,9 +95,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	config.ConsumerKey = *consumerKey
+	config.ConsumerSecret = *consumerSecret
+	config.AccessSecret = *accessSecret
+	config.AccessToken = *accessToken
+}
+
+func loadOrders() {
 	c := oauth.NewConsumer(
-		*consumerKey,
-		*consumerSecret,
+		config.ConsumerKey,
+		config.ConsumerSecret,
 		oauth.ServiceProvider{
 			RequestTokenUrl:   "https://openapi.etsy.com/v2/oauth/request_token?scope=transactions_w",
 			AuthorizeTokenUrl: "https://openapi.etsy.com/v2/oauth/authorize",
@@ -50,30 +113,15 @@ func main() {
 
 	c.Debug(true)
 
-	token := oauth.AccessToken{Token: "<access_token>", Secret: "<secret>"}
+	token := oauth.AccessToken{Token: config.AccessToken, Secret: config.AccessSecret}
 
 	client, err := c.MakeHttpClient(&token)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	GetOrders(client)
-	// defer response.Body.Close()
-
-	// bits, err := ioutil.ReadAll(response.Body)
-	// fmt.Println("The newest item in your home timeline is: " + string(bits))
-
-	// if *postUpdate {
-	// 	status := fmt.Sprintf("Test post via the API using Go (http://golang.org/) at %s", time.Now().String())
-
-	// 	response, err = client.PostForm(
-	// 		"https://api.twitter.com/1.1/statuses/update.json",
-	// 		url.Values{"status": []string{status}})
-
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-
-	// 	log.Printf("%v\n", response)
-	// }
+	openOrders := GetOrders(client)
+	ordersMutex.Lock()
+	orders = openOrders
+	ordersMutex.Unlock()
 }
