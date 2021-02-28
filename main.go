@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 )
 
 var ordersMutex = &sync.Mutex{}
-var orders = []Order{}
 
 type ordersReply struct {
 	Orders []Order `json:"orders"`
@@ -28,16 +26,7 @@ type etsyConfig struct {
 }
 
 var config etsyConfig
-
-//Usage How to user
-func Usage() {
-	fmt.Println("Usage:")
-	fmt.Print("go run etsy-orders")
-	fmt.Print("  --consumerkey <consumerkey>")
-	fmt.Println("  --consumersecret <consumersecret>")
-	fmt.Println("")
-	fmt.Println("In order to get your consumerkey and consumersecret, you must register an 'app' etsy.com:")
-}
+var reply ordersReply
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Alive!")
@@ -45,7 +34,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 func orderHandler(w http.ResponseWriter, r *http.Request) {
 	ordersMutex.Lock()
-	json.NewEncoder(w).Encode(orders)
+	json.NewEncoder(w).Encode(reply)
 	ordersMutex.Unlock()
 }
 
@@ -61,47 +50,30 @@ func main() {
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/orders", orderHandler)
 
-	fmt.Printf("Listening on port 8081")
+	log.Printf("Listening on port 8081")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
 
 func loadConfig() {
-	var consumerKey *string = flag.String(
-		"consumerkey",
-		"",
-		"Consumer Key from Etsy")
+	consumerKey := os.Getenv("ETSY_ORDERS_CONSUMER_KEY")
+	consumerSecret := os.Getenv("ETSY_ORDERS_CONSUMER_SECRET")
+	accessToken := os.Getenv("ETSY_ORDERS_ACCESS_KEY")
+	accessSecret := os.Getenv("ETSY_ORDERS_ACCESS_SECRET")
 
-	var consumerSecret *string = flag.String(
-		"consumersecret",
-		"",
-		"Consumer Secret Etsy")
-
-	var accessToken *string = flag.String(
-		"accesstoken",
-		"",
-		"Access Token for Etsy App")
-
-	var accessSecret *string = flag.String(
-		"accesssecret",
-		"",
-		"Access Secret Etsy App")
-
-	flag.Parse()
-
-	if len(*consumerKey) == 0 || len(*consumerSecret) == 0 {
-		fmt.Println("You must set the --consumerkey and --consumersecret flags.")
+	if len(consumerKey) == 0 || len(consumerSecret) == 0 {
+		fmt.Println("You must set the ETSY_ORDERS_CONSUMER_KEY and ETSY_ORDERS_CONSUMER_SECRET Environment Variables.")
 		fmt.Println("---")
-		Usage()
 		os.Exit(1)
 	}
 
-	config.ConsumerKey = *consumerKey
-	config.ConsumerSecret = *consumerSecret
-	config.AccessSecret = *accessSecret
-	config.AccessToken = *accessToken
+	config.ConsumerKey = consumerKey
+	config.ConsumerSecret = consumerSecret
+	config.AccessSecret = accessSecret
+	config.AccessToken = accessToken
 }
 
 func loadOrders() {
+	log.Println("Loading Orders")
 	c := oauth.NewConsumer(
 		config.ConsumerKey,
 		config.ConsumerSecret,
@@ -111,7 +83,7 @@ func loadOrders() {
 			AccessTokenUrl:    "https://openapi.etsy.com/v2/oauth/access_token",
 		})
 
-	c.Debug(true)
+	// c.Debug(true)
 
 	token := oauth.AccessToken{Token: config.AccessToken, Secret: config.AccessSecret}
 
@@ -122,6 +94,7 @@ func loadOrders() {
 
 	openOrders := GetOrders(client)
 	ordersMutex.Lock()
-	orders = openOrders
+	reply.Orders = openOrders
 	ordersMutex.Unlock()
+	log.Printf("Done loading %v Orders", len(openOrders))
 }

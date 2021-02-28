@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sort"
 )
 
 //Orders - list of orders currently open in shop
@@ -40,6 +41,7 @@ type Receipts struct {
 		TransactionID int64  `json:"transaction_id"`
 		Title         string `json:"title"`
 		URL           string `json:"url"`
+		Quantity      int    `json:"quantity"`
 		Variations    []struct {
 			PropertyID     int    `json:"property_id"`
 			ValueID        int64  `json:"value_id"`
@@ -65,13 +67,15 @@ type Receipts struct {
 
 //An Order is consolidation of an Order and Receipt from Etsy
 type Order struct {
-	Name              string
-	PrimaryColor      string
-	SecondaryColor    string
-	SlotAmount        string
-	MessageFromSeller string
-	GiftMessage       string
-	URL               string
+	Name              string `json:"name"`
+	PrimaryColor      string `json:"primary_color"`
+	SecondaryColor    string `json:"secondary_color"`
+	SlotAmount        string `json:"slot_amount"`
+	Quantity          int    `json:"quantity"`
+	MessageFromSeller string `json:"message_from_seller"`
+	GiftMessage       string `json:"gift_message"`
+	URL               string `json:"url"`
+	DaysFromDueDate   int    `json:"days_from_due_date"`
 }
 
 // GetOrders expects a http client setup with auth ready to go.
@@ -113,13 +117,18 @@ func GetOrders(client *http.Client) []Order {
 				primaryColor,
 				secondaryColor,
 				slotAmount,
+				receipts.Results[j].Quantity,
 				orders.Results[i].MessageFromBuyer,
 				orders.Results[i].GiftMessage,
 				receipts.Results[j].URL,
+				orders.Results[i].DaysFromDueDate,
 			}
 			openOrders = append(openOrders, order)
 		}
 	}
+	sort.Slice(openOrders, func(i, j int) bool {
+		return openOrders[i].DaysFromDueDate < openOrders[j].DaysFromDueDate
+	})
 	return openOrders
 }
 
