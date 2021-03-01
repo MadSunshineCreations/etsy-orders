@@ -38,11 +38,13 @@ type Orders struct {
 type Receipts struct {
 	Count   int `json:"count"`
 	Results []struct {
-		TransactionID int64  `json:"transaction_id"`
-		Title         string `json:"title"`
-		URL           string `json:"url"`
-		Quantity      int    `json:"quantity"`
-		Variations    []struct {
+		TransactionID  int64  `json:"transaction_id"`
+		Title          string `json:"title"`
+		URL            string `json:"url"`
+		Quantity       int    `json:"quantity"`
+		ListingID      int    `json:"listing_id"`
+		ImageListingID int    `json:"image_listing_id"`
+		Variations     []struct {
 			PropertyID     int    `json:"property_id"`
 			ValueID        int64  `json:"value_id"`
 			FormattedName  string `json:"formatted_name"`
@@ -76,6 +78,15 @@ type Order struct {
 	GiftMessage       string `json:"gift_message"`
 	URL               string `json:"url"`
 	DaysFromDueDate   int    `json:"days_from_due_date"`
+	ImageURL          string `json:"image_url"`
+}
+
+//Images is a list of URL for a listing Image
+type Images struct {
+	Count   int `json:"count"`
+	Results []struct {
+		SmallURL string `json:"url_75x75"`
+	}
 }
 
 // GetOrders expects a http client setup with auth ready to go.
@@ -102,7 +113,7 @@ func GetOrders(client *http.Client) []Order {
 			slotAmount := ""
 			for k := 0; k < len(receipts.Results[j].Variations); k++ {
 				switch variation := receipts.Results[j].Variations[k].FormattedName; variation {
-				case "Color":
+				case "Complete Comfort Grip Color", "Color":
 					primaryColor = receipts.Results[j].Variations[k].FormattedValue
 				case "Secondary color":
 					secondaryColor = receipts.Results[j].Variations[k].FormattedValue
@@ -110,6 +121,8 @@ func GetOrders(client *http.Client) []Order {
 					slotAmount = receipts.Results[j].Variations[k].FormattedValue
 				}
 			}
+
+			imageURL := getListingImage(client, receipts.Results[j].ListingID, receipts.Results[j].ImageListingID)
 
 			//Make a new order for each
 			order := Order{
@@ -122,6 +135,7 @@ func GetOrders(client *http.Client) []Order {
 				orders.Results[i].GiftMessage,
 				receipts.Results[j].URL,
 				orders.Results[i].DaysFromDueDate,
+				imageURL,
 			}
 			openOrders = append(openOrders, order)
 		}
@@ -144,4 +158,22 @@ func getTransactions(client *http.Client, recieptID int) Receipts {
 		panic(err)
 	}
 	return receipts
+}
+
+func getListingImage(client *http.Client, listingID int, listingImageID int) string {
+	response, err := client.Get(
+		"https://openapi.etsy.com/v2/listings/" + fmt.Sprint(listingID) + "/images/" + fmt.Sprint(listingImageID))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bytes, err := ioutil.ReadAll(response.Body)
+	images := Images{}
+	if err := json.Unmarshal(bytes, &images); err != nil {
+		panic(err)
+	}
+	if images.Count > 0 {
+		return images.Results[0].SmallURL
+	}
+	return ""
 }
