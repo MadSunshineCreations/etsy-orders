@@ -23,6 +23,7 @@ type etsyConfig struct {
 	ConsumerSecret string
 	AccessToken    string
 	AccessSecret   string
+	ShopID         string
 }
 
 var config etsyConfig
@@ -59,6 +60,7 @@ func loadConfig() {
 	consumerSecret := os.Getenv("ETSY_ORDERS_CONSUMER_SECRET")
 	accessToken := os.Getenv("ETSY_ORDERS_ACCESS_KEY")
 	accessSecret := os.Getenv("ETSY_ORDERS_ACCESS_SECRET")
+	shopID := os.Getenv("ETSY_ORDERS_SHOP_ID")
 
 	if len(consumerKey) == 0 || len(consumerSecret) == 0 {
 		fmt.Println("You must set the ETSY_ORDERS_CONSUMER_KEY and ETSY_ORDERS_CONSUMER_SECRET Environment Variables.")
@@ -70,6 +72,7 @@ func loadConfig() {
 	config.ConsumerSecret = consumerSecret
 	config.AccessSecret = accessSecret
 	config.AccessToken = accessToken
+	config.ShopID = shopID
 }
 
 func loadOrders() {

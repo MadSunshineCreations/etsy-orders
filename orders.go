@@ -92,7 +92,7 @@ type Images struct {
 // GetOrders expects a http client setup with auth ready to go.
 func GetOrders(client *http.Client) []Order {
 	response, err := client.Get(
-		"https://openapi.etsy.com/v2/shops/15212421/receipts?was_paid=true&was_shipped=false")
+		fmt.Sprintf("https://openapi.etsy.com/v2/shops/%v/receipts?was_paid=true&was_shipped=false", config.ShopID))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func GetOrders(client *http.Client) []Order {
 
 func getTransactions(client *http.Client, recieptID int) Receipts {
 	response, err := client.Get(
-		"https://openapi.etsy.com/v2/receipts/" + fmt.Sprint(recieptID) + "/transactions")
+		fmt.Sprintf("https://openapi.etsy.com/v2/receipts/%v/transactions", recieptID))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func getTransactions(client *http.Client, recieptID int) Receipts {
 
 func getListingImage(client *http.Client, listingID int, listingImageID int) string {
 	response, err := client.Get(
-		"https://openapi.etsy.com/v2/listings/" + fmt.Sprint(listingID) + "/images/" + fmt.Sprint(listingImageID))
+		fmt.Sprintf("https://openapi.etsy.com/v2/listings/%v/images/%v", listingID, listingImageID))
 	if err != nil {
 		log.Fatal(err)
 	}
