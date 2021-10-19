@@ -96,7 +96,10 @@ func GetOrders(client *http.Client) []Order {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	if response.StatusCode == 400 {
+		// Probably rate limited
+		return make([]Order, 0)
+	}
 	bytes, err := ioutil.ReadAll(response.Body)
 	orders := Orders{}
 	if err := json.Unmarshal(bytes, &orders); err != nil {
